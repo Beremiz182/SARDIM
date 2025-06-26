@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <!-- Nome do site que vai aparecer na aba do navegador -->
+    <title>SARDIM</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Favicon Icon (icone na aba do navegador)-->
+    <link rel="shortcut icon" href="https://img.icons8.com/offices/100/000000/america.png" />
+
+    <!-- Leaflet JS (códigos base JavaScript importados do Leaflet) -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="">
+        </script>
+
+    <!-- Leaflet CSS (estilo importado do Leaflet)-->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+    <!-- Fullscreen plugin JS -->
+    <script src="https://unpkg.com/leaflet.fullscreen@1.6.0/Control.FullScreen.js"></script>
+
+    <!-- Fullscreen plugin CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.fullscreen@1.6.0/Control.FullScreen.css" />
+
+    <!-- Leaflet Control Geocoder JS (para barra de pesquisa)-->
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+    <!-- Leaflet Control Geocoder CSS (para barra de pesquisa)-->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+
+    <!-- Chart.js para criar um grafico num trecho de rio -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        #map {
+            height: 100vh;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <!-- Loading Screen (carregando!)-->
+    <div id="loadingScreen">
+        <div class="loadingContent">
+            <h2>Carregando dados hidrológicos...</h2>
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <!-- formato da barra de navegacao superior -->
+    <div id="navibar">
+        <nav class="navbar"> <!-- navbar-expand-lg navbar-light bg-light"> -->
+
+            <img src="imagens/logo_sardim.png" class="nav-logo">
+            <ul class="nav-links">
+                <li><a href="https://www.ufrgs.br/sardim/">Início</a></li>
+                <li><a href="#" onclick="show('sobre')">Sobre</a></li>
+                <li><a href="#" onclick="show('publicacoes')">Publicações</a></li>
+                <li class="dropdown">
+                    <a href="#">Contato</a>
+                    <ul class="submenu">
+                        <li><a href="#" onclick="show('autores')">Autores</a></li>
+                        <li><a href=" https://www.ufrgs.br/hge/">HGE</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </nav>
+        <div id="date-display" style="position: absolute; right: 20px; top: 10px; font-weight: bold;"></div>
+    </div>
+
+    <!-- leitura e implementacao da data de atualizacao -->
+    <script>
+        fetch('matlab/date.txt')
+            .then(response => response.text())
+            .then(line => {
+                // Split the line into date and message
+                const [rawDate, ...msgParts] = line.trim().split(' ');
+                const message = msgParts.join(' ') || 'Update';
+
+                const date = new Date(rawDate);
+                // Split manually to avoid UTC misinterpretation
+                const [year, month, day] = rawDate.split('-').map(Number);
+                const localDate = new Date(year, month - 1, day); // months are 0-based
+
+                if (!isNaN(date)) {
+                    const formatted = localDate.toLocaleDateString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric'
+                    });
+                    document.getElementById('date-display').textContent = `Última atualização: ${formatted}`;
+                } else {
+                    console.warn("Formato de data inválido no arquivo.");
+                }
+            })
+            .catch(err => console.error('Erro ao carregar data:', err));
+    </script>
+
+    <!-- estilo principalmente da barra de navegacao e da tela de carregamento-->
+    <style>
+        .navbar {
+            background-color: #ffffff;
+            padding: 10px 10px;
+            align-items: center;
+            display: flex;
+            top: 0;
+            width: 100%;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .nav-logo {
+            height: 50px;
+        }
+
+        .nav-links {
+            margin: 0;
+            display: flex;
+            gap: 30px;
+        }
+
+        .nav-links li {
+            display: inline;
+            position: relative;
+        }
+
+        .nav-links a {
+            color: rgb(0, 0, 0);
+            text-decoration: none;
+            font-weight: normal;
+            font-family: sans-serif;
+            /*, Helvetica, sans-serif;*/
+            transition: color 0.2s;
+            font-size: 20px;
+            display: block;
+        }
+
+        .nav-links a:hover {
+            color: #f39c12;
+        }
+
+        /* Submenu hidden by default */
+        .submenu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            /* directly below the parent */
+            left: 0;
+            background-color: #ffffff;
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            min-width: 160px;
+            z-index: 1000;
+            box-shadow: 0 4px 8px rgba(29, 170, 60, 0.2);
+        }
+
+        /* Submenu items */
+        .submenu li a {
+            padding: 10px;
+            text-decoration: none;
+            display: block;
+            white-space: nowrap;
+        }
+
+        .submenu li a:hover {
+            background-color: #cccccc;
+        }
+
+        /* Show submenu when hovering over parent */
+        .dropdown:hover .submenu {
+            display: block;
+        }
+
+        #date-display {
+            position: absolute;
+            top: 12px;
+            right: 20px;
+
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 14px;
+            color: #444;
+
+            padding: 6px 10px;
+            background-color: #f9f9f9;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+            transition: background-color 0.3s ease;
+        }
+
+        #date-display:hover {
+            background-color: #eeeeee;
+            color: #000;
+        }
+
+        #loadingScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .loadingContent {
+            text-align: center;
+            font-family: sans-serif;
+        }
+
+        .spinner {
+            margin: 20px auto;
+            width: 50px;
+            height: 50px;
+            border: 6px solid #ccc;
+            border-top-color: #1d72b8;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+
+    <!-- Info box dos autores-->
+    <div class="info-box" id="autores" style="display: none;">
+        <div class="modal-header">
+            <span id="closeBtn_autores" class="close-btn">&times;</span>
+            <h5 style="font-size: larger"><b>CONTATO</b></h5>
+        </div>
+        <div class="modal-body" style="text-align: justify;">
+            <h6 style="font-size: large;"><b>Autores:</b></h6>
+            <p></p>
+            <p>Gustavo Gabbardo dos Reis - IPH-UFRGS</p>
+            <p>Rodrigo Cauduro Dias de Paiva - IPH-UFRGS</p>
+            <p>João Paulo Lyra Fialho Brêda - IPH-UFRGS</p>
+            <p>Matheus Sampaio Medeiros - IPH-UFRGS</p>
+            <p>Vinícius Alencar Siqueira - IPH-UFRGS</p>
+            <h6 style="font-size: large;"><b>Email:</b></h6>
+            <p>projetosardim@gmail.com</p>
+        </div>
+        <div class="modal-footer">
+            <button id="closeBtn2_autores" type="button" class="close-btn">Fechar</button>
+        </div>
+    </div>
+
+    <!-- Info box das publicacoes-->
+    <div class="info-box" id="publicacoes" style="display: none;">
+        <div class="modal-header">
+            <span id="closeBtn_pub" class="close-btn">&times;</span>
+            <h5 style="font-size: larger"><b>PUBLICAÇÕES</b></h5>
+        </div>
+        <div class="modal-body" style="text-align: justify;">
+            <p> Siqueira, V. A., Paiva, R. C. D., Fleischmann, A. S., Fan, F. M., Ruhoff,
+                A. L., Pontes, P. R. M., Paris, A., Calmant, S., and Collischonn, W.: Toward continental
+                hydrologic–hydrodynamic modeling in South America, Hydrol. Earth Syst. Sci., 22, 4815–4842 (2018).<br>
+                <a target="_blank"
+                    href="https://doi.org/10.5194/hess-22-4815-2018">https://doi.org/10.5194/hess-22-4815-2018</a>
+            </p>
+            <p> Reis, G. G., Paiva, R. C. D., Brêda, J. P. L. F., Siqueira, V. A. S.: SARDIM: a real-time hydrological
+                monitoring platform of South American rivers. Revista Brasileira de Recursos Hídricos. Vol 28.
+                (2023).<br> <a target="_blank" href="https://doi.org/10.1590/2318-0331.282320220106">
+                    https://doi.org/10.1590/2318-0331.282320220106</a>
+            </p>
+
+        </div>
+        <div class="modal-footer">
+            <button id="closeBtn2_pub" type="button" class="close-btn">Fechar</button>
+        </div>
+    </div>
+
+    <!-- Info box das informacoes gerais (Sobre)-->
+    <div class="info-box" id="sobre" style="display: none;"> <!-- class="modal-content"> -->
+        <div class="modal-header">
+            <span id="closeBtn_sobre" class="close-btn">&times;</span>
+            <h3 style="font-size: larger"><b>SOBRE</b></h3>
+        </div>
+        <div class="modal-body">
+            <h4 style="font-size: large"><b>Informações gerais:</b></h4>
+            <p style="text-align: justify;">A plataforma SARDIM é destinada à visualização de dados de permanência e
+                tempo de retorno das vazões dos rios da América do Sul. Baseados em simulações do modelo hidrológico
+                MGB-SA (Modelo de Grandes Bacias - South America), os resultados são apresentados para cada trecho de
+                rio do mapa, considerando os valores de vazão diários da última data de atualização da plataforma e a
+                análise de eventos extremos no mês.</p>
+            <p style="text-align: justify;">A base de dados de chuva utilizada como forçante principal do modelo MGB-SA
+                para as estimativas em tempo quase real é proveniente da missão GPM (Global Precipitation Measurement). 
+                Os dados consistem em uma combinação de produtos com diferentes processamentos (GPM Final, Late e Early) 
+                que são distribuídos pela NASA (National Aeronautics and Space Administration) com aproximadamente 4 horas de
+                latência. Já os dados de precipitação utilizados para estimar o histórico de vazão de 1980 até 2015 são
+                oriundos da base MSWEP. Sobre os dados do GPM, ainda é aplicada uma correção de viés para reduzir os erros
+                sistemáticos em relação à base de chuva originalmente utilizada pelo modelo MGB-SA (MSWEP).</p>
+            <p style="text-align: justify;">A permanência da vazão para um trecho de rio é obtida através da análise de
+                sua curva de duração. Essa curva informa graficamente com que frequência a vazão de uma determinada
+                magnitude é igualada ou excedida durante o período de registro das vazões. No caso da plataforma SARDIM,
+                o período analisado corresponde ao dia 01/01/1980 até a última data de atualização do site (localizada
+                no canto superior direito do menu principal) para o cálculo da permanência padrão, enquanto a
+                permanência sazonal é baseada apenas em dados de vazão referentes ao mês atual de todos os anos do
+                período em questão.</p>
+            <p style="text-align: justify;">O tempo de retorno é o intervalo de tempo em anos estimado no qual se espera
+                a ocorrência de um determinado evento. Considerando por exemplo uma vazão de um trecho de rio com tempo
+                de retorno igual a 5 anos, espera-se que o valor dessa vazão seja igualado ou superado naquele trecho,
+                em média, uma vez a cada 5 anos. A plataforma SARDIM adota valores positivos de tempo de retorno
+                (gradiente azul) para eventos de cheias e valores negativos (gradiente vermelho) para eventos de secas
+                ou estiagens.</p>
+            <h4 style="font-size: large"><b>Funcionalidades:</b></h4>
+            <p style="text-align: justify;">
+                <img src="imagens/plus.png" alt="..." class="img-thumbnail" style="margin-right: 8px;"> Ampliar zoom no mapa.
+            </p>
+            <p style="text-align: justify;">
+                <img src="imagens/minus.png" alt="..." class="img-thumbnail" style="margin-right: 8px;"> Reduzir zoom no mapa.
+            </p>
+            <p style="text-align: justify;">
+                <img src="imagens/fullscreen.png" alt="..." class="img-thumbnail" style="margin-right: 8px;"> Entrar no modo de tela cheia.
+            </p>
+            <p style="text-align: justify;">
+                <img src="imagens/home.png" alt="..." class="img-thumbnail" style="margin-right: 8px;"> Retornar à configuração de mapa inicial.
+            </p>
+            <p style="text-align: justify;">
+                <img src="imagens/layerlist.png" alt="..." class="img-thumbnail" style="margin-right: 8px;"> Lista de camadas disponíveis.
+            </p>
+            <p style="text-align: justify;">
+                Selecione uma das seis opções de resultados na lista de camadas para visualizar a variação de cor nos rios conforme o 
+                parâmetro escolhido: permanência atual, permanência sazonal atual, permanência máxima ou mínima nos últimos 30
+                dias, tempo de retorno atual, tempo de retorno máximo ou mínimo nos últimos 30 dias ou a permanência máxima ou mínima
+                em um mês escolhido.
+            </p>
+            <p style="text-align: justify;">
+                <img src="imagens/basemap.png" alt="..." class="img-thumbnail" style="margin-right: 8px;"> Mudar mapa de fundo para imagem de
+                satélite.
+            </p>
+            <p style="text-align: justify;">
+                <img src="imagens/filter.png" alt="..." class="img-thumbnail" style="margin-right: 8px;"> Aplicar filtro na rede drenagem para
+                visualizar apenas trechos de rios com área de drenagem acumulada à montante maior ou igual à
+                especificada na ferramenta.
+            </p>
+            <p style="text-align: justify;">
+                <img src="imagens/lupa.png" alt="..." class="img-thumbnail" style="margin-right: 8px;"> Ferramenta de pesquisa: é possível
+                pesquisar um endereço/nome de rio usando o Leaflet Control Geocoder.
+            </p>
+            <h4 style="font-size: large"><b>Visualizando os resultados:</b></h4>
+            <img src="imagens/trechorio.png" alt="..." class="img-thumbnail">
+            <p></p>
+            <p style="text-align: justify;"> Para visualizar os resultados, clique com o botão esquerdo do mouse sobre
+                um trecho de rio. O trecho selecionado ficará automaticamente em destaque ao passar o cursor do mouse.
+            </p>
+            <p style="text-align: justify;">Após selecionar o trecho de rio, uma tabela com os resultados principais
+                aparecerá na tela em uma janela de pop-up.
+            </p>
+            <p style="text-align: justify;">Deslizando o scroll do mouse na janela de pop-up, é possível visualizar o
+                gráfico das vazões médias semanais dos últimos 2 meses. Passe o cursor do mouse sobre as colunas do
+                gráfico para visualizar o valor exato da vazão média na semana desejada.</p>
+            <p style="text-align: justify;">Ainda mais embaixo visualiza-se as vazões máximas e mínimas anuais desde 1980 até o ano anterior.
+                O gráfico ainda demonstra a situação da vazão atual comparada com essas situações de extremos. </p>
+        </div>
+        <div class="modal-footer">
+            <button id="closeBtn2_sobre" type="button" class="close-btn">Fechar</button>
+        </div>
+    </div>
+
+    
+    <!-- Trecho em que são definidos os mapas -->
+    <div id="map">
+
+        <!-- Inicialização do mapa (centro), basemaps e escala-->
+        <script>
+            // Initialize the map and set its view
+            var map = L.map('map', {
+                center: [-20, -60],
+                zoom: 3.8,
+                minZoom: 2.5,
+                wheelPxPerZoomLevel: 120,  // Higher = slower zoom
+                fullscreenControl: true, // botao de full screen
+                fullscreenControlOptions: {
+                    position: 'topleft'  // or 'topright'
+                }
+            });
+
+            // Adicionando os basemaps
+            const topo_map = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '&copy; Esri & contributors',
+            });
+
+            const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '&copy; Esri & contributors',
+            });
+
+            // Start with one layer
+            topo_map.addTo(map);
+
+            // Store in an array for toggling
+            const baseMaps = [topo_map, satellite];
+            let currentBaseIndex = 0;
+
+            // Adicionando a escala
+            L.control.scale({
+                position: 'bottomleft',
+                metric: true,
+                imperial: false,  // disables miles
+                maxWidth: 200     // Optional: make it longer
+            }).addTo(map);
+
+            // Example bounding box [southWest, northEast]
+            const bounds = L.latLngBounds(
+                L.latLng(-80, -160),  // Southwest corner (lat, lng)
+                L.latLng(80, 50)     // Northeast corner (lat, lng)
+            );
+            map.setMaxBounds(bounds);
+            map.options.maxBoundsViscosity = 1.0;
+
+        </script>
+
+
+        <!-- incluindo as coordenadas-->
+        <div id="coordenadas">
+            <div id="coords" class="coords2">
+                Lat: --, Lng: --
+            </div>
+            <script>
+                map.on('mousemove', function (e) {
+                    document.getElementById('coords').innerHTML =
+                        `Lat: ${e.latlng.lat.toFixed(5)}, Lng: ${e.latlng.lng.toFixed(5)}`;
+                });
+            </script>
+        </div>
+
+
+        <!-- style do basemap attribution, escala e coordenadas -->
+        <style>
+            .coords2 {
+                position: fixed;
+                z-index: 1000;
+                bottom: 10px;
+                right: 10px;
+                background: rgba(255, 255, 255, 0.8);
+                padding: 5px;
+                font-family: sans-serif;
+                font-size: 12px;
+                border-radius: 4px
+            }
+
+            .leaflet-control-scale {
+                position: fixed;
+                bottom: 10px;
+                left: 10px;
+                z-index: 1000;
+            }
+
+            .leaflet-control-attribution {
+                position: fixed !important;
+                bottom: 0px;
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 1000;
+                background: rgba(255, 255, 255, 0.8);
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-size: 11px;
+            }
+
+            .leaflet-control-scale-line,
+            .leaflet-control-scale-line::after {
+                color: #000;
+                font-weight: bold;
+                font-size: 11px;
+            }
+        </style>
+
+
+        <!-- botao de recentralizar e restaurar o zoom -->
+        <script>
+            // Define your initial center and zoom
+            const initialCenter = [-20, -60]; // example coordinates
+            const initialZoom = 3.8;
+
+            // Create a custom button control
+            const recenterControl = L.Control.extend({
+                options: {
+                    position: 'topleft', // same area as zoom buttons
+                },
+                onAdd: function (map) {
+                    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-recenter');
+                    const button = L.DomUtil.create('a', '', container);
+
+                    button.innerHTML = `<img src="imagens/home.png" alt="Basemap" style="width:20px; height:20px;">` // '⟳' You can replace this with an icon or image
+                    button.href = '#';
+                    button.title = 'Re-center and Re-zoom';
+
+                    button.style.backgroundColor = 'white';
+                    button.style.textAlign = 'center';
+                    button.style.fontSize = '18px';
+                    //button.style.padding = '4px';
+
+                    // Prevent map dragging when clicking the button
+                    L.DomEvent.disableClickPropagation(container);
+
+                    L.DomEvent.on(button, 'click', function (e) {
+                        e.preventDefault();
+                        map.setView(initialCenter, initialZoom);
+                    });
+
+                    return container;
+                }
+            });
+
+            // Add to map
+            map.addControl(new recenterControl());
+
+        </script>
+
+
+        <!-- botao do painel de atributos-->
+        <script>
+            const attributeToggle = L.Control.extend({
+                options: {
+                    position: 'topleft' // same as zoom buttons
+                },
+                onAdd: function (map) {
+                    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                    const button = L.DomUtil.create('a', '', container);
+
+                    button.innerHTML = `<img src="imagens/layerlist.png" alt="Attributes" style="width:20px; height:20px;">`;
+                    button.href = '#';
+                    button.title = 'Choose map attribute';
+
+                    button.style.backgroundColor = 'white';
+                    //button.style.padding = '4px';
+
+                    // Toggle the visibility of the attribute panel
+                    button.onclick = function (e) {
+                        e.preventDefault();
+                        const panel = document.getElementById('attributePanel');
+                        panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+                    };
+
+                    return container;
+                }
+            });
+
+            map.addControl(new attributeToggle());
+        </script>
+
+
+        <!-- Painel de Atributos -->
+        <div id="attributePanel">
+            <h4 style="font-size: large;"><b> Lista de Camadas </b></h4>
+            <form>
+                <label><input type="radio" name="attribute" value="Permanencia" checked> Permanência atual</label><br>
+                <label><input type="radio" name="attribute" value="Permanencia_30"> Permanência máx / mín Últimos 30
+                    dias</label><br>
+                <label><input type="radio" name="attribute" value="Permanencia2"> Permanência sazonal atual</label><br>
+                <label><input type="radio" name="attribute" value="Tr"> Tempo de retorno atual </label><br>
+                <label><input type="radio" name="attribute" value="Tr_30"> Tempo de retorno máx / mín Últimos 30
+                    dias</label><br>
+                <label><input type="radio" name="attribute" value="monthYear"> Permanência máx / mín Histórica
+                </label><br>
+
+                <!-- Custom Month-Year Selector (initially hidden) -->
+                <div id="customMonthPicker" style="margin-top: 1em; display: none;">
+                    <label><b>Selecionar mês e ano:</b></label><br>
+                    <select id="monthSelect"></select>
+                    <select id="yearSelect"></select>
+                </div>
+            </form>
+        </div>
+
+
+        <!-- botao para escolher o basemap -->
+        <script>
+            const baseMapToggle = L.Control.extend({
+                options: {
+                    position: 'topleft'
+                },
+                onAdd: function (map) {
+                    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                    const button = L.DomUtil.create('a', '', container);
+
+                    button.innerHTML = `<img src="imagens/basemap.png" alt="Basemap" style="width:20px; height:20px;">`;
+                    button.href = '#';
+                    button.title = 'Toggle Basemap';
+
+                    button.onclick = function (e) {
+                        e.preventDefault();
+
+                        // Remove current base map
+                        map.removeLayer(baseMaps[currentBaseIndex]);
+
+                        // Switch to the next base map
+                        currentBaseIndex = (currentBaseIndex + 1) % baseMaps.length;
+                        map.addLayer(baseMaps[currentBaseIndex]);
+                    };
+
+                    return container;
+                }
+            });
+
+            map.addControl(new baseMapToggle());
+
+        </script>
+
+
+        <!-- Painel de Filtro de area -->
+        <div id="filterPanel">
+            <label style="font-size: 16px"><b>Filtro por Área Montante (km²):</b></label><br>
+            <select id="areaFilter">
+                <option value="all">> 1000</option>
+                <option value="2500">> 2500</option>
+                <option value="5000">> 5000</option>
+                <option value="10000">> 10000</option>
+                <option value="15000">> 15000</option>
+            </select>
+        </div>
+
+
+        <!-- botao do Filtro de area -->
+        <script>
+            const filterToggle = L.Control.extend({
+                options: {
+                    position: 'topleft'
+                },
+                onAdd: function (map) {
+                    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                    const button = L.DomUtil.create('a', '', container);
+
+                    button.innerHTML = `<img src="imagens/filter.png" alt="Filter" style="width:20px; height:20px;">`;
+                    button.href = '#';
+                    button.title = 'Filter by Area';
+
+                    button.style.backgroundColor = 'white';
+
+                    button.onclick = function (e) {
+                        e.preventDefault();
+                        const panel = document.getElementById('filterPanel');
+                        panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+                    };
+
+                    return container;
+                }
+            });
+            map.addControl(new filterToggle());
+        </script>
+
+
+        <!-- Barra de Procura de um lugar especifico -->
+        <script>
+            L.Control.geocoder({
+                position: 'topright',
+                defaultMarkGeocode: false, // prevent default marker
+                placeholder: 'Encontrar o Lugar'
+            })
+                .on('markgeocode', function (e) {
+                    const bbox = e.geocode.bbox;
+                    const bounds = L.latLngBounds(bbox);
+                    map.fitBounds(bounds);  // zoom to result
+                })
+                .addTo(map);
+        </script>
+
+
+        <!-- Estilo dos botoes, do Painel de atributos, do Painel de Filtro e do Search bar-->
+        <style>
+            #filterPanel {
+                display: none;
+                position: absolute;
+                top: 280px;
+                left: 60px;
+                background: white;
+                padding: 10px;
+                border-radius: 6px;
+                z-index: 1001;
+                box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
+            }
+
+            #attributePanel {
+                display: none;
+                position: absolute;
+                top: 190px;
+                /* adjust spacing */
+                left: 60px;
+                background: white;
+                padding: 10px;
+                border-radius: 6px;
+                z-index: 1001;
+                box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
+            }
+
+            #attributePanel label {
+                font-family: sans-serif;
+                font-size: 14px;
+                display: block;
+                margin: 4px 0;
+            }
+
+            /* Tighten up the button container */
+            .leaflet-bar.leaflet-control {
+                background: none;
+                /* Remove default white background */
+                border: none;
+                /* Remove default border */
+                box-shadow: none;
+                /* Remove box shadow */
+                display: flex;
+                /* Arrange buttons vertically */
+                flex-direction: column;
+                gap: 6px;
+                /* Space between buttons */
+                align-items: center;
+            }
+
+            /* Style individual buttons (anchor tags inside the control) */
+            .leaflet-bar.leaflet-control a {
+                width: 26px;
+                /* Match icon size */
+                height: 26px;
+                padding: 4px;
+                /* Optional: a little internal padding */
+                background-color: white;
+                border: 1px solid #ccc;
+                /* Light grey border */
+                border-radius: 4px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: background 0.3s;
+            }
+
+            .leaflet-bar.leaflet-control a:hover {
+                background-color: #f0f0f0;
+            }
+
+            .leaflet-control-geocoder {
+                background: white;
+                border-radius: 6px;
+                box-shadow: 0 0 6px rgba(0, 0, 0, 0.3);
+                padding: 4px;
+            }
+
+            .leaflet-control-geocoder-form input {
+                font-size: 14px;
+                padding: 4px 8px;
+                width: 200px;
+                border-radius: 4px;
+                border: 1px solid #ccc;
+                background-color: white;
+            }
+
+            /* Style the geocoder results dropdown */
+            .leaflet-control-geocoder-results {
+                background: white;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                max-height: 200px;
+                overflow-y: auto;
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+                z-index: 10000;
+            }
+        </style>
+
+
+        <!-- abrindo, lendo e juntando o shapefile e o csv 
+         e colorindo o shapefile dos rios -->
+        <script>
+
+            let geojsonLayer; // define globally to remove it when redrawing
+            let lastClickedLayer = null; //
+
+            // Step 1: Load both files using Promise.all
+            Promise.all([
+                fetch('MGB_SA_Rivers.geojson').then(res => res.json()),
+                fetch('matlab/teste.csv').then(res => res.text())
+            ])
+                .then(([geojsonData, csvText]) => {
+
+                    // Step 2: Parse CSV to array of objects
+                    const attributeData = parseCSV(csvText);
+
+                    // Step 3: Create a lookup object for fast access by ID
+                    const dataMap = {};
+                    attributeData.forEach(row => {
+                        dataMap[row.Mini] = row;
+                    });
+
+                    // Step 4: Merge attributes into GeoJSON
+                    geojsonData.features.forEach(feature => {
+                        const mini = feature.properties.Mini;
+                        if (dataMap[mini]) {
+                            // Object.assign(feature.properties, dataMap[mini]); // ⬅ Merge all attributes
+                            feature.properties.id = mini; // just keep reference
+                        }
+                    });
+
+                    //tirando a tela de carregamento
+                    document.getElementById('loadingScreen').style.display = 'none';
+
+                    // Step 5: Draw initial layer
+                    drawGeoJSON(geojsonData, 'Permanencia', dataMap);
+
+
+                    // Essas secoes sao para se ter uma iteracao com o shapefile
+                    // Selecao do painel do atributo
+                    const areaSelect = document.getElementById("areaFilter");
+                    const monthSelect = document.getElementById("monthSelect");
+                    const yearSelect = document.getElementById("yearSelect");
+                    const customPicker = document.getElementById("customMonthPicker");
+
+                    // Main event handler - Detectando o atributo selecionado
+                    document.querySelectorAll('#attributePanel input[name="attribute"]').forEach(input => {
+                        input.addEventListener('change', () => {
+                            const isMonth = input.value === 'monthYear';
+                            customPicker.style.display = isMonth ? 'block' : 'none';
+                            if (isMonth) {
+                                validateMonthOptions();
+                            }
+                            updateMap(geojsonData, dataMap);
+                        });
+                    });
+
+                    // Event: area filter dropdown
+                    areaSelect.addEventListener('change', () => {
+                        updateMap(geojsonData, dataMap);
+                    });
+
+                    // Event: custom month/year pickers
+                    monthSelect.addEventListener('change', () => {
+                        updateMap(geojsonData, dataMap);
+                    });
+                    yearSelect.addEventListener('change', () => {
+                        validateMonthOptions();
+                        updateMap(geojsonData, dataMap);
+                    });
+
+                    populateMonthYearPicker();
+                    validateMonthOptions();
+
+                });
+
+        </script>
+
+
+        <!-- funcoes para pegar as cores com base no atributo (getColor), atribuir legenda (updateLegend), 
+         para ler o csv (parseCSV), para ligar e desligar o shape (drawGeoJSON),
+         gerar um buffer nas linhas para facilitar o clique (addClickBuffer),
+         gerar popups quando clica nas linhas (generatePopupContent), criar um grafico no popup (renderPopupChart),
+         criar um segundo grafico no popup (renderPopupChart2),
+         gerar categorias para os TRs (getTRCategory), transformar as entradas em float e ter uma casa decimal (formatNumber),
+         determinar os anos e meses que podem ser selecionados para a Permanencia (populateMonthYearPicker),
+         desativar os meses do futuro e o atual (validateMonthOptions), atualizar o mapa (updateMap),
+         pegar o atributo que sera desenhado no mapa (getSelectedAttribute), aplicar o filtro de area (getAreaThreshold)  
+         -->
+        <div id="funcoes">
+            <script>
+
+                // funcao para escrever uma string para os TRs
+                function getTRCategory(num) {
+                    const value = parseFloat(num);
+                    if (value === -99999) {
+                        return 'Unknown';
+                    } else if (value < -20) {
+                        return '<-20';
+                    } else if (value < -10) {
+                        return '-10 to -20';
+                    } else if (value < -5) {
+                        return '-5 to -10';
+                    } else if (value < -2) {
+                        return '-2 to -5';
+                    } else if (value < -1.0001) {
+                        return '-1 to -2';
+                    } else if (value <= 1) {
+                        return '-1 to +1';
+                    } else if (value < 2) {
+                        return '+1 to +2';
+                    } else if (value < 5) {
+                        return '+2 to +5';
+                    } else if (value < 10) {
+                        return '+5 to +10';
+                    } else if (value < 20) {
+                        return '+10 to +20';
+                    } else {
+                        return '> +20';
+                    }
+                }
+
+                // Add GeoJSON to map with styled lines
+                function drawGeoJSON(datageojson, attr, datamap, areaThreshold = null) {
+
+                    // filtrando o shape pela area de drenagem
+                    const filteredFeatures = areaThreshold
+                        ? datageojson.features.filter(f => {
+                            const id = f.properties.Mini;               // Unique ID
+                            const external = datamap[id];               // Get row from CSV
+                            return parseFloat(f.properties.areakm2) > areaThreshold;;
+                        })
+                        : datageojson.features;
+
+                    // pegando os dados, transformando em float, pegando a cor e a largura da linha
+                    geojsonLayer = L.geoJSON({ type: "FeatureCollection", interactive: true, features: filteredFeatures }, {
+                        style: function (feature) {
+                            const id = feature.properties.Mini; // or Mini if unchanged
+                            const data = datamap[id];
+                            const val = parseFloat(data?.[attr]);
+                            const area = parseFloat(feature.properties.areakm2);
+                            return {
+                                color: getColor(val, attr),
+                                weight: getWeight(area),
+                                opacity: 0.8
+                            };
+                        },
+
+                        // gerando o pop up quando clica em uma linha
+                        onEachFeature: function (feature, layer) {
+                            const id = feature.properties.Mini;
+                            const external = datamap[id];
+
+                            const content = generatePopupContent(feature, external);
+                            layer.bindPopup(content, {
+                                maxWidth: 600,     // Increase as needed
+                                minWidth: 300,
+                                maxHeight: 600     // Optional: to avoid it being too tall}
+                            });
+
+                            // Optional: render chart when popup opens
+                            layer.on('popupopen', function () {
+                                renderPopupChart(external);
+                                renderPopupChart2(external);
+                            });
+
+                            // transformando o trecho clicado em amarelo e depois transformando de volta
+                            layer.on('click', function () {
+                                if (lastClickedLayer) {
+                                    geojsonLayer.resetStyle(lastClickedLayer); // restore previous style
+                                }
+
+                                this.setStyle({
+                                    color: 'yellow',
+                                    weight: 5,
+                                    opacity: 1
+                                });
+
+                                lastClickedLayer = this;
+                            });
+
+                            addClickBuffer(feature, layer); // Optional: add the invisible click buffer
+                        }
+
+                    }).addTo(map);
+                    updateLegend(attr);
+                }
+
+                // Invisible thicker buffer para facilitar clicar em cima do trecho escolhido
+                function addClickBuffer(feature, layer) {
+                    const bufferLayer = L.geoJSON(feature, {
+                        style: {
+                            color: '#000000',
+                            opacity: 0,     // fully transparent
+                            weight: 20      // wide buffer for easier click
+                        }
+                    }).addTo(map);
+
+                    bufferLayer.on('click', function () {
+                        layer.fire('click'); // simulate click on the visible layer
+                    });
+                }
+
+                // funcao para gerar popup
+                function generatePopupContent(feature, datamapID) {
+                    const props = datamapID;
+                    const props2 = feature.properties;
+
+                    // HTML table layout
+                    let html = `
+                        <div style="font-family: sans-serif; font-size: 14px; max-width: 600px">
+                            <style>
+                                table.popup-table {
+                                    width: 100%;
+                                    border-collapse: collapse;
+                                }
+                                table.popup-table tr:nth-child(even) {
+                                    background-color: #f0f0f0;
+                                }
+                                table.popup-table td {
+                                    padding: 4px 8px;
+                                    border: 1px solid #ccc;
+                                }
+                            </style>
+                            <h4 style="margin-top: 2; font-size: 16px">SARDIM</h4>
+                            <table class="popup-table">
+                                <tr><td><b>Mini</b></td><td>${props.Mini || 'N/A'}</td></tr>
+                                <tr><td><b>Área de drenagem acumulada (km²) </b></td><td>${formatNumber(props2.areakm2) ?? 'N/A'}</td></tr>
+                                <tr><td><b>Permanência atual (%)</b></td><td>${formatNumber(props.Permanencia) ?? 'N/A'}</td></tr>
+                                <tr><td><b>Permanência máx / mín (%) Últimos 30 dias </b></td><td>${formatNumber(props.Permanencia_30) ?? 'N/A'}</td></tr>
+                                <tr><td><b>Permanência sazonal atual (%)</b></td><td>${formatNumber(props.Permanencia2) ?? 'N/A'}</td></tr>
+                                <tr><td><b>Permanência sazonal máx / mín (%) Últimos 30 dias </b></td><td>${formatNumber(props.Permanencia2_30) ?? 'N/A'}</td></tr>
+                                <tr><td><b>Tempo de retorno (anos) Secas(-) Cheias(+) </b></td><td>${getTRCategory(props.Tr) ?? 'N/A'}</td></tr>
+                                <tr><td><b>Tempo de retorno (anos) Últimos 30 dias Secas(-) Cheias(+) </b></td><td>${getTRCategory(props.Tr_30) ?? 'N/A'}</td></tr>
+                            </table>
+                            <h4 style="margin: 40px 0 2px 0; font-size: 16px">Vazão média semanal nos últimos 2 meses (m³/s)</h4>
+                            <p style="margin: 0;"><i> 8 últimas semanas, sendo semana 1 a semana atual </i></p>
+                            <canvas id="popupChart-${props.Mini}" width="450" height="250" style="margin-top:10px;"></canvas>
+                            <h4 style="margin: 40px 0 2px 0; font-size: 16px">Histórico de Vazões Máximas e Mínimas (m³/s)</h4>
+                            <canvas id="popupChart2-${props.Mini}" width="450" height="250" style="margin-top:10px;"></canvas>
+                        </div>
+                    `;
+                    return html;
+                }
+
+                // funcao para formatar os numeros (float e 1 casa decimal)
+                function formatNumber(value) {
+                    const num = parseFloat(value);
+                    return (typeof num === 'number' && !isNaN(num)) ? num.toFixed(1) : 'N/A';
+                }
+
+                // funcao para criar um grafico no popup (media das ultimas semanas)
+                function renderPopupChart(datamapID) {
+
+                    const props = datamapID;
+                    const canvasId = `popupChart-${props.Mini}`;
+                    const ctx = document.getElementById(canvasId);
+
+                    if (!ctx) return;
+
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: ['Semana 8', 'Semana 7', 'Semana 6', 'Semana 5', 'Semana 4',
+                                'Semana 3', 'Semana 2', 'Semana 1'],
+                            datasets: [{
+                                label: 'Values',
+                                data: [props.Semana_8 ?? 0, props.Semana_7 ?? 0, props.Semana_6 ?? 0,
+                                props.Semana_5 ?? 0, props.Semana_4 ?? 0, props.Semana_3 ?? 0,
+                                props.Semana_2 ?? 0, props.Semana_1 ?? 0
+                                ],
+                                backgroundColor: ['#2196F3']
+                            }]
+                        },
+                        options: {
+                            responsive: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: { beginAtZero: true }
+                            }
+                        }
+                    });
+                }
+
+                // funcao para criar um segundo grafico no popup (vazoes maximas)
+                function renderPopupChart2(datamapID) {
+                    const props = datamapID;
+                    const canvasId = `popupChart2-${props.Mini}`;
+
+                    // Step 1: Filter keys with suffix 'max' and extract [key, value]
+                    const maxEntries = Object.entries(props)
+                        .filter(([key, _]) => key.endsWith("_max"))
+                        .sort((a, b) => {
+                            // Extract numeric suffix and compare
+                            const aNum = parseInt(a[0].replace("_max", ""));
+                            const bNum = parseInt(b[0].replace("_max", ""));
+                            return aNum - bNum;
+                        });
+
+                    // Step 2: Filter keys with suffix 'min' and extract [key, value]
+                    const minEntries = Object.entries(props)
+                        .filter(([key, _]) => key.endsWith("_min"))
+                        .sort((a, b) => {
+                            // Extract numeric suffix and compare
+                            const aNum = parseInt(a[0].replace("_min", ""));
+                            const bNum = parseInt(b[0].replace("_min", ""));
+                            return aNum - bNum;
+                        });
+
+
+                    // Two datasets
+                    const labels = maxEntries.map(([key, _]) => key.replace('_max', ""));
+                    const dataset1 = maxEntries.map(([_, val]) => formatNumber(val));
+                    const dataset2 = minEntries.map(([_, val]) => formatNumber(val));
+                    const dataset3 = Array(45).fill(formatNumber(props.Qhoje));
+
+
+                    // Create line chart with 2 datasets
+                    const ctx = document.getElementById(canvasId);
+                    if (!ctx) return;
+
+                    // Create line chart with 2 datasets
+                    new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'Máximos Anuais',
+                                    data: dataset1, // pad to match label length
+                                    borderColor: 'blue',
+                                    backgroundColor: 'lightblue',
+                                    fill: false,
+                                    tension: 0.1
+                                },
+                                {
+                                    label: 'Mínimos Anuais',
+                                    data: dataset2, // pad first three
+                                    borderColor: 'green',
+                                    backgroundColor: 'lightgreen',
+                                    fill: false,
+                                    tension: 0.1
+                                },
+                                {
+                                    label: 'Vazão Atual',
+                                    data: dataset3, // pad first three
+                                    borderColor: 'black',
+                                    backgroundColor: 'grey',
+                                    borderDash: [5, 5], // dashed line
+                                    fill: false,
+                                    tension: 0.1,
+                                    pointRadius: 0
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: false,
+                            scales: {
+                                y: { beginAtZero: true }
+                            }
+                        }
+                    });
+                }
+
+                // Function to determine color based on attribute value
+                function getColor(value, attr) {
+
+                    if (attr === 'Tr' || attr === 'Tr_30') {
+                        breaks = [-1000000, -20000, -10000, -20, -10, -5, -2, -1.0001, 1.0001, 2, 5, 10, 20, 10000];
+                        colors = [
+                            '#008000',
+                            '#ffffff',
+                            '#7F2704',
+                            '#A63603',
+                            '#D94801',
+                            '#F16913',
+                            '#FDAE6B',
+                            '#BDBDBD',
+                            '#6BAED6',
+                            '#4292C6',
+                            '#2171B5',
+                            '#08519C',
+                            '#08306B',
+                            '#ffffff'
+                        ];
+                    }
+                    else {
+                        breaks = [-5, 0, 1, 5, 10, 30, 70, 90, 95, 99, 100];
+                        colors = [
+                            '#ffffff',
+                            '#1a1a78', '#313695', '#4575b4', '#91bfdb',
+                            '#808080',
+                            '#fc8d59', '#d7301f', '#b30000', '#7f0000',
+                            '#ffffff'
+                        ];
+                    }
+
+                    for (let i = 0; i < breaks.length; i++) {
+                        if (value < breaks[i + 1]) {
+                            return colors[i];
+                        }
+                    }
+                    return colors[colors.length - 1];
+
+                    return '#ccc'; // fallback color
+                }
+
+                // funcao para definir a largura dos rios
+                function getWeight(area) {
+                    if (area > 100000) return 2.5;
+                    if (area > 20000) return 2;
+                    if (area > 10000) return 1.5;
+                    if (area > 5000) return 1;
+                    return 0.5; // default small rivers
+                }
+
+                // Function to determine color based on attribute value
+                function updateLegend(attribute) {
+                    // let legendHTML = `<strong style="fontsize: 16px">${attribute} (%) </strong><br>`;
+                    let grades = [];
+                    let labels = [];
+                    let getColorForLegend = () => '#ccc';
+
+                    if (attribute === 'Tr' || attribute === 'Tr_30') {
+                        legendHTML = `<strong style="fontsize: 16px"> Tempo de Retorno (anos) </strong><br>`;
+                        grades = [-1000000, -20000, -10000, -20, -10, -5, -2, -1, 1, 2, 5, 10, 20, 10000];
+                        labels = [
+                            "Indeterminado",
+                            "Estiagem (-)",
+                            "< -20 (Intensa)",
+                            "-20 a -10 (Intensa)",
+                            "-10 a -5 (Moderada)",
+                            "-5 a -2 (Moderada)",
+                            "-2 a -1 (Leve)",
+                            "-1 a +1 (Leve)",
+                            "+1 a +2 (Leve)",
+                            "+2 a +5 (Moderada)",
+                            "+5 a +10 (Moderada)",
+                            "+10 a +20 (Intensa)",
+                            "> +20 (Intensa)",
+                            "Cheia (+)"
+                        ];
+                        i_ini = 2
+                    }
+
+                    else {
+                        legendHTML = `<strong style="fontsize: 16px"> Permanência (%) </strong><br>`;
+                        grades = [-5, 0, 1, 5, 10, 30, 70, 90, 95, 99, 100];
+                        labels = [
+                            "Cheia (-)",
+                            "Intensa",
+                            "Intensa",
+                            "Moderada",
+                            "Moderada",
+                            "Leve",
+                            "Moderada",
+                            "Moderada",
+                            "Intensa",
+                            "Intensa",
+                            "Estiagem (+)"
+                        ];
+                        i_ini = 1
+                    }
+
+                    getColorForLegend = (d) => getColor(d + 0.001, attribute);
+
+                    if (i_ini === 2) {
+                        for (let i = 0; i < grades.length; i++) {
+                            let label = labels[i];
+                            legendHTML += `
+                            <div class="legend-item">
+                                <i style="background:${getColorForLegend(grades[i])};
+                                width: 14px; height: 4px; float: left;
+                                margin-right: 6px; margin-top: 10px; opacity: 0.8;"></i>
+                                ${label}<br>
+                            </div>`;
+                        }
+                    }
+                    else {
+                        legendHTML += `
+                            <div class="legend-item">
+                                <i style="background:${getColorForLegend(grades[0])};
+                                width: 14px; height: 4px; float: left;
+                                margin-right: 6px; opacity: 0.8;"></i>
+                                ${labels[0]}<br>
+                            </div>`;
+                        for (let i = 1; i < grades.length - 1; i++) {
+                            let from = grades[i];
+                            let to = grades[i + 1];
+                            let label = labels[i];
+                            legendHTML += `
+                            <div class="legend-item">
+                                <i style="background:${getColorForLegend(from)};
+                                width: 14px; height: 4px; float: left;
+                                margin-right: 6px; margin-top: 10px; opacity: 0.8;"></i>
+                                ${from}${to ? '–' + to : '+'} (${label})<br>
+                            </div>`;
+                        }
+                        legendHTML += `
+                            <div class="legend-item">
+                                <i style="background:${getColorForLegend(grades[grades.length - 1])};
+                                width: 14px; height: 4px; float: left;
+                                margin-right: 6px; opacity: 0.8;"></i>
+                                ${labels[grades.length - 1]}<br>
+                            </div>`;
+                    }
+
+                    document.getElementById('legend').innerHTML = legendHTML;
+                }
+
+                // CSV parser: turns CSV text into array of objects
+                function parseCSV(csv) {
+                    const lines = csv.trim().split('\n');
+                    const headers = lines[0].split(',');
+                    return lines.slice(1).map(line => {
+                        const values = line.split(',');
+                        const obj = {};
+                        headers.forEach((header, i) => {
+                            obj[header.trim()] = values[i].trim();
+                        });
+                        return obj;
+                    });
+                }
+
+                // Populate year/month dropdowns (1980 em diante)
+                function populateMonthYearPicker() {
+                    const currentDate = new Date();
+                    const currentYear = currentDate.getFullYear();
+                    const currentMonth = currentDate.getMonth() + 1;
+
+                    for (let m = 1; m <= 12; m++) {
+                        const monthValue = m.toString().padStart(2, '0');
+                        const option = document.createElement("option");
+                        option.value = monthValue;
+                        option.textContent = monthValue;
+                        monthSelect.appendChild(option);
+                    }
+
+                    for (let y = 1980; y <= currentYear; y++) {
+                        const option = document.createElement("option");
+                        option.value = y;
+                        option.textContent = y;
+                        yearSelect.appendChild(option);
+                    }
+
+                    // Set default to previous full month
+                    let defaultMonth = currentMonth - 1;
+                    let defaultYear = currentYear;
+                    if (defaultMonth === 0) {
+                        defaultMonth = 12;
+                        defaultYear -= 1;
+                    }
+                    monthSelect.value = defaultMonth.toString().padStart(2, '0');
+                    yearSelect.value = defaultYear;
+                }
+
+                // funcao para desativar a escolha do mes atual e meses futuros 
+                function validateMonthOptions() {
+                    const selectedYear = parseInt(yearSelect.value);
+                    const now = new Date();
+                    const currentYear = now.getFullYear();
+                    const currentMonth = now.getMonth() + 1;
+
+                    Array.from(monthSelect.options).forEach(option => {
+                        const month = parseInt(option.value);
+                        option.disabled = (selectedYear === currentYear && month >= currentMonth);
+                    });
+                }
+
+                // selecionando o atributo, seja um dos atuais ou dos historicos
+                function getSelectedAttribute() {
+                    const selectedAttr = document.querySelector('#attributePanel input[name="attribute"]:checked').value;
+                    if (selectedAttr === 'monthYear') {
+                        const year = yearSelect.value;
+                        const month = monthSelect.value;
+                        return `Y${year}-${month}`;
+                    }
+                    return selectedAttr;
+                }
+
+                // pegando o filtro de area
+                function getAreaThreshold() {
+                    const areaSelect = document.getElementById('areaFilter');
+                    if (!areaSelect) return null;
+
+                    const value = areaSelect.value;
+                    return value === 'all' ? null : parseFloat(value);
+                }
+
+                // Fazendo o update do mapa para o mês escolhido
+                function updateMap(geojsonData, datamap) {
+                    const attr = getSelectedAttribute();
+                    const threshold = getAreaThreshold();
+                    if (geojsonLayer) {
+                        map.removeLayer(geojsonLayer);
+                    }
+                    drawGeoJSON(geojsonData, attr, datamap, threshold);
+                }
+
+            </script>
+        </div>
+
+        <!-- estilo da legenda-->
+        <div id="legend" class="legenda">
+        </div>
+        <style>
+            .legenda {
+                position: fixed;
+                bottom: 50px;
+                right: 10px;
+                background: rgba(255, 255, 255, 0.9);
+                padding: 15px 15px;
+                border-radius: 5px;
+                font-size: 20px;
+                z-index: 1000;
+                box-shadow: 0 0 6px rgba(0, 0, 0, 0.3);
+                clear: both;
+            }
+
+            #legend {
+                font-size: 14px;
+                line-height: 24px;
+            }
+        </style>
+
+    </div>
+
+    <!-- INFO BOX - Nessa secao programamos a mensagem de boas vindas-->
+    <div class="overlay" id="info-overlay"></div>
+    <div id="infoBox" class="info-box">
+
+        <span id="closeBtn" class="close-btn">&times;</span>
+
+        <h2 style="text-align:center">AVISO</h2>
+        <p>A Plataforma de Monitoramento de Vazão dos Rios da América do Sul - <i>South America River Discharge
+                Monitor</i> (SARDIM) é um protótipo em desenvolvimento.</p>
+        <p>Esta ferramenta foi criada pelo grupo de pesquisa Hidrologia de Grande Escala (HGE), que faz parte do
+            Instituto de Pesquisas Hidráulicas (IPH) da Universidade Federal do Rio Grande do Sul (UFRGS).</p>
+        <p>Os dados disponíveis <b>não</b> são referentes a medições locais de vazão ou valores observados in loco. Todos
+            os
+            resultados foram obtidos por meio do uso de tecnologias de modelagem hidrológica em grande escala. Para
+            mais
+            informações, consulte a documentação do modelo hidrológico de referência <a target="_blank"
+                href="https://doi.org/10.5194/hess-22-4815-2018">Siqueira et al., (2018)</a> ou o artigo que
+            introduz
+            essa plataforma <a target="_blank" href="https://www.scielo.br/j/rbrh/a/ZJPRks7R8DdjRJC7RRTVWHL/">Gabbardo
+                et al., (2023)</a>.</p>
+        <p>Ao clicar em <b>Aceitar</b>, o usuário se responsabiliza integral e exclusivamente pelo uso das
+            informações
+            disponibilizadas.</p>
+        <p> </p>
+        <button id="closeBtn2" type="button" class="close-btn">Aceitar</button>
+
+
+    </div>
+
+    <!-- Nessa secao tem o estilo das infobox e dos botoes de fechar -->
+    <style>
+        .info-box {
+            position: fixed;
+            top: 10%;
+            left: 40%;
+            max-width: 400px;
+            background-color: white;
+            border: 5px solid #ccc;
+            padding: 30px 30px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            border-radius: 2px;
+            font-family: sans-serif;
+            text-align: justify;
+            font-weight: normal;
+        }
+
+        #sobre {            
+            overflow-y: auto;
+            top: 10%;
+            left: 30%;
+            max-width: 40%;
+            max-height: 700px;
+        }
+
+        .close-btn {
+            float: right;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .btn-secondary {
+            float: none;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        /* Overlay to shade the page */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            /* translucent black */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            /* on top of most content */
+        }
+    </style>
+
+    <!-- Isso aqui é pra fazer os efeitos de fechar e abrir as infoBox -->
+    <script>
+        function show(idd) {
+            document.getElementById(idd).style.display = "block";
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const closeButtons = document.querySelectorAll(".close-btn");
+
+            closeButtons.forEach(button => {
+                button.addEventListener("click", function () {
+                    // Hide all info boxes
+                    document.querySelectorAll(".info-box").forEach(box => {
+                        box.style.display = "none";
+                    });
+
+                    // Hide the overlay, if it exists
+                    const overlay = document.getElementById("info-overlay");
+                    if (overlay) {
+                        overlay.style.display = "none";
+                    }
+                });
+            });
+        });
+
+    </script>
+
+</body>
+
+</html>
