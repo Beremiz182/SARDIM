@@ -1,0 +1,12 @@
+SARDIM - 31/05/2021
+
+O código do MGB, versão 1.3, foi adaptado para o SARDIM.
+As adaptações são poucas e estão demarcadas ("SARDIM") como comentário no código.
+Incluem:
+
+1. Leitura de um chuvabin externo ('chuvabin_tudo_GPM.pbi' em Main.f90)
+2. Leitura de um arquivo externo que define o nT (em Main.f90).
+3. Novo dia inicial para rodar o MGB atraves do ReadHot (em MODELO.f90)
+4. Remoção da gravação de vários arquivos devido ao projeto CEAA (MODELO.f90 e SIMULA.f90)
+5. Aumento do numero de nucleos para simulação (de 8 para 16)
+6. Tirar os PAUSE e READ(*,*) da rotina main.f90
